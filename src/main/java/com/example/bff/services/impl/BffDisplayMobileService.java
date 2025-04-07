@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Service
 public class BffDisplayMobileService implements MobileInformation {
@@ -30,10 +31,14 @@ public class BffDisplayMobileService implements MobileInformation {
         ResponseEntity<AccountDto> accountInfo = legacyAccountsClient.getOne(id);
         AccountDto accountDto = accountInfo.getBody();
 
-        return apiClient.getOne(id)
-                .map(profileDto -> new MobileProfileDto(profileDto.id(), profileDto.name(), profileDto.avatar(),
-                        profileDto.bio(), profileDto.companyName(), profileDto.jobTitle(), accountDto.id(),
-                        accountDto.currency(), accountDto.balance().toString()));
+        return Mono.fromCallable(() -> legacyAccountsClient.getOne(id).getBody())
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(accountDto1 ->
+                        apiClient.getOne(id).map(profileDto ->
+                                new MobileProfileDto(profileDto.id(), profileDto.name(), profileDto.avatar(),
+                                        profileDto.bio(), profileDto.companyName(), profileDto.jobTitle(), accountDto.id(),
+                                        accountDto.currency(), accountDto.balance().toString())));
+
     }
 
     @Override
